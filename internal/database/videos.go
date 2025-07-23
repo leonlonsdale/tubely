@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/pkg/util"
 	"github.com/google/uuid"
 )
 
@@ -43,7 +44,7 @@ func (c Client) GetVideos(userID uuid.UUID) ([]Video, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer util.SafeClose(rows)
 
 	videos := []Video{}
 	for rows.Next() {
