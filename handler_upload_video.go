@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/pkg/util"
 	"github.com/google/uuid"
 )
 
@@ -53,7 +52,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusBadRequest, "unable to parse form file", err)
 		return
 	}
-	defer util.SafeClose(file)
+	defer cfg.utils.SafeClose(file)
 
 	mediaType, _, err := mime.ParseMediaType(header.Header.Get("Content-Type"))
 	if err != nil {
@@ -85,12 +84,42 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	key := fmt.Sprintf("videos/%s.mp4", videoID)
+	ratio, err := cfg.utils.GetVideoAspectRatio(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "problem identifying video ratio", err)
+		return
+	}
+
+	var prefix string
+	switch ratio {
+	case "16:9":
+		prefix = "landscape"
+	case "9:16":
+		prefix = "portrait"
+	default:
+		prefix = "other"
+	}
+
+	key := fmt.Sprintf("%s/videos/%s.mp4", prefix, videoID)
+
+	outputPath, err := cfg.utils.ProcessVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error processing file", err)
+		return
+	}
+	defer func() { _ = os.Remove(outputPath) }()
+
+	processedFile, err := os.Open(outputPath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "unable to open processed file", err)
+		return
+	}
+	defer cfg.utils.SafeClose(processedFile)
 
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &key,
-		Body:        tempFile,
+		Body:        processedFile,
 		ContentType: aws.String("video/mp4"),
 	})
 	if err != nil {
@@ -102,7 +131,6 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	videoURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, key)
 
 	// Update the video record in the DB
-	//
 	video.VideoURL = &videoURL
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
