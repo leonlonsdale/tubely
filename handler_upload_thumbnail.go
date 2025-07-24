@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/pkg/util"
 	"github.com/google/uuid"
 )
 
@@ -44,7 +43,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "unable to parse form file", err)
 		return
 	}
-	defer util.SafeClose(file)
+	defer cfg.utils.SafeClose(file)
 
 	mediaType, _, err := mime.ParseMediaType(header.Header.Get("Content-Type"))
 	if err != nil {
@@ -71,7 +70,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusInternalServerError, "unable to create file on server", err)
 		return
 	}
-	defer util.SafeClose(dst)
+	defer cfg.utils.SafeClose(dst)
 
 	if _, err = io.Copy(dst, file); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "error saving file", err)
