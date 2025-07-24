@@ -24,6 +24,8 @@ type CreateVideoParams struct {
 	UserID      uuid.UUID `json:"user_id"`
 }
 
+var utils = util.NewUtils()
+
 func (c Client) GetVideos(userID uuid.UUID) ([]Video, error) {
 	query := `
 	SELECT
@@ -44,7 +46,7 @@ func (c Client) GetVideos(userID uuid.UUID) ([]Video, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer util.SafeClose(rows)
+	defer utils.SafeClose(rows)
 
 	videos := []Video{}
 	for rows.Next() {
