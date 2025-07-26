@@ -100,7 +100,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		prefix = "other"
 	}
 
-	key := fmt.Sprintf("%s/videos/%s.mp4", prefix, videoID)
+	key := fmt.Sprintf("%s/%s.mp4", prefix, videoID)
 
 	outputPath, err := cfg.utils.ProcessVideoForFastStart(tempFile.Name())
 	if err != nil {
@@ -127,17 +127,20 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Construct the S3 URL
-	videoURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, key)
-
-	// Update the video record in the DB
-	video.VideoURL = &videoURL
+	bucketKey := fmt.Sprintf("%s,%s", cfg.s3Bucket, key)
+	video.VideoURL = &bucketKey
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "error updating video URL in DB", err)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	signedVideo, err := cfg.dbVideoToSignedVideo(video)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("failed to generate signed URL for upload for video: %v", err), err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, signedVideo)
 	_, _ = fmt.Fprintf(w, "Video uploaded successfully")
 }

@@ -2,12 +2,16 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"os/exec"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // type UtilService interface {
@@ -86,6 +90,21 @@ func (u *Utils) ProcessVideoForFastStart(filepath string) (string, error) {
 	}
 
 	return outputFilepath, nil
+}
+
+func (u *Utils) GeneratePresignedURL(s3Client *s3.Client, bucket, key string, expireTime time.Duration) (string, error) {
+	presignClient := s3.NewPresignClient(s3Client)
+
+	res, err := presignClient.PresignGetObject(context.Background(), &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}, s3.WithPresignExpires(expireTime))
+
+	if err != nil {
+		return "", err
+	}
+
+	return res.URL, nil
 }
 
 func aspectRatioType(width, height int) string {
